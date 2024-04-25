@@ -9,13 +9,13 @@ import torch.distributions as ptd
 
 #Q
 class Critic(nn.Module):
-    def __init__(self, beta, name, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1):
+    def __init__(self, beta, indim, name, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1):
         super().__init__()
         self.net_name=name
         self.hidden_0=hidden_0
         self.hidden_1=hidden_1
         
-        self.dense_0=nn.LazyLinear(self.hidden_0) #in_dim = env.observation_space.shape[0]
+        self.dense_0=nn.Linear(indim, self.hidden_0) #in_dim = env.observation_space.shape[0]
         nn.ReLU()
         self.dense_1=nn.Linear(self.hidden_0, self.hidden_1)
         nn.ReLU()
@@ -25,7 +25,7 @@ class Critic(nn.Module):
         self.to(self.device)
 
     def forward(self, state, action):
-        state_action_value = self.dense_0(torch.cat(state, action))
+        state_action_value = self.dense_0(torch.cat(state, action), dim=1)
         assert state_action_value.size()[0]==self.hidden_0
         state_action_value = self.dense_1(state_action_value)
 
@@ -35,13 +35,13 @@ class Critic(nn.Module):
 
 #State Value
 class CriticValue(nn.Module):
-    def __init__(self, beta, name, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1):
+    def __init__(self, indim, beta, name, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1):
         super().__init__()
         self.net_name=name
         self.hidden_0=hidden_0
         self.hidden_1=hidden_1
         
-        self.dense_0=nn.LazyLinear(self.hidden_0) #in_dim = env.observation_space.shape[0]
+        self.dense_0=nn.Linear(indim, self.hidden_0) #in_dim = env.observation_space.shape[0]
         nn.ReLU()
         self.dense_1=nn.Linear(self.hidden_0, self.hidden_1)
         nn.ReLU()
@@ -61,7 +61,7 @@ class CriticValue(nn.Module):
         return value
     
 class Actor(nn.Module):
-    def __init__(self, beta, name, upper_bound, actions_dim, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1, epsilon=EPSILON, log_std_min=LOG_STD_MIN, log_std_max=LOG_STD_MAX):
+    def __init__(self, indim, beta, name, upper_bound, actions_dim, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1, epsilon=EPSILON, log_std_min=LOG_STD_MIN, log_std_max=LOG_STD_MAX):
         
         super().__init__()
         self.hidden_0 = hidden_0
@@ -73,12 +73,12 @@ class Actor(nn.Module):
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
 
-        self.dense_0=nn.LazyLinear(self.hidden_0) #in_dim = env.observation_space.shape[0]
+        self.dense_0=nn.Linear(indim, self.hidden_0) #in_dim = env.observation_space.shape[0]
         nn.ReLU()
         self.dense_1=nn.Linear(self.hidden_0, self.hidden_1)
         nn.ReLU()
         self.mean=nn.Linear(self.hidden_1, self.actions_dim)
-        self.std=nn.Linear(self.hidden_1, self.actions_dim)
+        self.log_std=nn.Linear(self.hidden_1, self.actions_dim)
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=beta)
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -91,7 +91,7 @@ class Actor(nn.Module):
         mean = self.mean(policy)
         log_std = self.log_std(policy)
 
-        log_std = torch.clip_by_value(log_std, self.log_std_min, self.log_std_max)
+        log_std = torch.clip(log_std, self.log_std_min, self.log_std_max)
 
         return mean, log_std
     
@@ -102,14 +102,15 @@ class Actor(nn.Module):
         normal_distr = ptd.Normal(mean, std)
         
         # Reparameterization trick
-        z = torch.randn(shape=mean.size())
+        z = torch.randn(size=mean.size())
 
         if reparameterization_trick:
             actions = mean + std * z
         else:
             actions = normal_distr.sample()
 
-        action = torch.tanh(actions) * self.upper_bound.to(self.device)
+        action = torch.tensor(torch.tanh(actions) * self.upper_bound).to(self.device)
+
         log_probs = normal_distr.log_prob(actions) - torch.log(1 - torch.pow(action,2) + self.epsilon)
         log_probs = torch.sum(log_probs, axis=1, keepdims=True)
 

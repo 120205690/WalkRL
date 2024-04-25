@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from tqdm import tqdm
-import wandb
+# import wandb
 from config import *
 from replay_buffer import *
 from networks import *
@@ -21,11 +21,11 @@ config = dict(
   env = ENV_NAME
 )
 
-wandb.init(
-  project=f"WalkRL {ENV_NAME.lower()}",
-  tags=["SAC", "FCL", "RL"],
-  config=config,
-)
+# wandb.init(
+#   project=f"WalkRL {ENV_NAME.lower()}",
+#   tags=["SAC", "FCL", "RL"],
+#   config=config,
+# )
 
 env = gym.make(ENV_NAME)
 agent = Agent(env)
@@ -62,9 +62,9 @@ for _ in tqdm(range(MAX_GAMES)):
     scores.append(score)
     agent.replay_buffer.update_n_games()
 
-    wandb.log({'Game number': agent.replay_buffer.n_games, '# Episodes': agent.replay_buffer.buffer_counter, 
-               "Average reward": round(np.mean(scores[-10:]), 2), \
-                      "Time taken": round(time.time() - start_time, 2)})
+    # wandb.log({'Game number': agent.replay_buffer.n_games, '# Episodes': agent.replay_buffer.buffer_counter, 
+    #            "Average reward": round(np.mean(scores[-10:]), 2), \
+    #                   "Time taken": round(time.time() - start_time, 2)})
     
     if (_ + 1) % SAVE_FREQUENCY == 0:
         print("saving...")
