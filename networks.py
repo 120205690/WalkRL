@@ -9,7 +9,7 @@ import torch.distributions as ptd
 
 #Q
 class Critic(nn.Module):
-    def __init__(self, name, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1):
+    def __init__(self, beta, name, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1):
         super().__init__()
         self.net_name=name
         self.hidden_0=hidden_0
@@ -20,6 +20,9 @@ class Critic(nn.Module):
         self.dense_1=nn.Linear(self.hidden_0, self.hidden_1)
         nn.ReLU()
         self.q_value=nn.Linear(self.hidden_1, 1)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=beta)
+        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.to(self.device)
 
     def forward(self, state, action):
         state_action_value = self.dense_0(torch.cat(state, action))
@@ -32,7 +35,7 @@ class Critic(nn.Module):
 
 #State Value
 class CriticValue(nn.Module):
-    def __init__(self, name, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1):
+    def __init__(self, beta, name, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1):
         super().__init__()
         self.net_name=name
         self.hidden_0=hidden_0
@@ -44,6 +47,10 @@ class CriticValue(nn.Module):
         nn.ReLU()
         self.q_value=nn.Linear(self.hidden_1, 1)
 
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=beta)
+        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.to(self.device)
+
     def forward(self, state):
         value = self.dense_0(state)
         assert value.size()[0]==self.hidden_0
@@ -54,7 +61,7 @@ class CriticValue(nn.Module):
         return value
     
 class Actor(nn.Module):
-    def __init__(self, name, upper_bound, actions_dim, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1, epsilon=EPSILON, log_std_min=LOG_STD_MIN, log_std_max=LOG_STD_MAX):
+    def __init__(self, beta, name, upper_bound, actions_dim, hidden_0=CRITIC_HIDDEN_0, hidden_1=CRITIC_HIDDEN_1, epsilon=EPSILON, log_std_min=LOG_STD_MIN, log_std_max=LOG_STD_MAX):
         
         super().__init__()
         self.hidden_0 = hidden_0
@@ -72,6 +79,10 @@ class Actor(nn.Module):
         nn.ReLU()
         self.mean=nn.Linear(self.hidden_1, self.actions_dim)
         self.std=nn.Linear(self.hidden_1, self.actions_dim)
+
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=beta)
+        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.to(self.device)
 
     def forward(self, state):
         policy = self.dense_0(state)
@@ -98,8 +109,9 @@ class Actor(nn.Module):
         else:
             actions = normal_distr.sample()
 
-        action = torch.tanh(actions) * self.upper_bound
+        action = torch.tanh(actions) * self.upper_bound.to(self.device)
         log_probs = normal_distr.log_prob(actions) - torch.log(1 - torch.pow(action,2) + self.epsilon)
         log_probs = torch.sum(log_probs, axis=1, keepdims=True)
 
         return action, log_probs
+    
