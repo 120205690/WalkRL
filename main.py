@@ -1,12 +1,12 @@
 import sys
-sys.path.append("../src")
+# sys.path.append("../src")
 import gym
 import pybullet_envs
 import torch
 import torch.nn as nn
 import numpy as np
 from tqdm import tqdm
-# import wandb
+import wandb
 from config import *
 from replay_buffer import *
 from networks import *
@@ -21,11 +21,11 @@ config = dict(
   env = ENV_NAME
 )
 
-# wandb.init(
-#   project=f"WalkRL {ENV_NAME.lower()}",
-#   tags=["SAC", "FCL", "RL"],
-#   config=config,
-# )
+wandb.init(
+  project=f"WalkRL {ENV_NAME.lower()}",
+  tags=["SAC", "FCL", "RL"],
+  config=config,
+)
 
 env = gym.make(ENV_NAME)
 agent = Agent(env)
@@ -36,6 +36,7 @@ evaluation = True
 if PATH_LOAD is not None:
     print("loading weights")
     observation = env.reset()
+    # observation=
     action, log_probs = agent.actor.get_action_log_probs(observation[None, :], False)
     agent.actor(observation[None, :])
     agent.critic_0(observation[None, :], action)
@@ -58,15 +59,15 @@ for _ in tqdm(range(MAX_GAMES)):
         agent.add_to_replay_buffer(states, action, reward, new_states, done)
         agent.learn()
         states = new_states
-    
+
     scores.append(score)
     agent.replay_buffer.update_n_games()
 
-    # wandb.log({'Game number': agent.replay_buffer.n_games, '# Episodes': agent.replay_buffer.buffer_counter, 
-    #            "Average reward": round(np.mean(scores[-10:]), 2), \
-    #                   "Time taken": round(time.time() - start_time, 2)})
-    
-    if (_ + 1) % SAVE_FREQUENCY == 0:
+    wandb.log({'Game number': agent.replay_buffer.n_games, '# Episodes': agent.replay_buffer.buffer_counter,
+               "Average reward": round(np.mean(scores[-10:]), 2), \
+                      "Time taken": round(time.time() - start_time, 2)})
+
+    if (_ + 1) % 20 == 0:
         print("saving...")
         agent.save()
         print("saved")
